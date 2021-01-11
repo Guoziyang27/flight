@@ -22,7 +22,7 @@ let canvas;
 function genOBJBuffer(gl, data, material) {
     const objs = []
 
-    console.log(data);
+    // console.log(data);
 
     let t = -Number.MAX_VALUE;
     for (let i = 0; i < data.geometries.length; ++i) {
@@ -169,8 +169,6 @@ function genTerrainBuffer(gl, data) {
         heights[x][z] = data.geometries[0].data.position[i + 1];
     }
     const getHeight = ([x, y, z]) => {
-        console.log(Math.floor((x) / scaleFactor * t % x_max));
-        console.log(Math.floor((z) / scaleFactor * t % z_max));
         return heights[Math.floor((x) / scaleFactor * t % x_max)][Math.floor((z) / scaleFactor * t % z_max)] / t * scaleFactor - scaleFactor / 20;
     }
 
@@ -570,14 +568,16 @@ export default async function main() {
         const projection = mat4.create();
         const fov = glMatrix.toRadian(Env.fov);
         const near = 0.1;
-        const far = 1000;
+        const far = 5000;
         const aspect = Env.SCR_WIDTH / Env.SCR_HEIGHT;
         mat4.perspective(projection, fov, aspect, near, far);
         const view = mat4.create();
         let t = vec3.create();
         vec3.add(t, Env.cameraPos, Env.cameraFront);
         mat4.lookAt(view, Env.cameraPos, t, Env.cameraUp);
-
+        //Calculate Vision range
+        //这个是相机坐标系
+        // const visionRange = getVisionRange(near, far, fov, aspect)
         //Draw Skybox
         skyShader.use();
         const view_tmp = mat4.create();
@@ -608,6 +608,7 @@ export default async function main() {
         ourShader.setFloat("fresnel", 5);
         ourShader.setInt("useLightPoint", 1);
         ourShader.setInt("useSpecular", 0);
+        ourShader.setInt("isCrash", 0);
 
         const modelOBJ = mat4.create();
         mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0));
@@ -626,18 +627,9 @@ export default async function main() {
             return vec3.fromValues(res[0], res[1], res[2]);
         })
 
-        for (let i = 0; i < aircraftOBBRotated.length; ++i) {
-            let point = aircraftOBBRotated[i];
-            console.log(point, Env.aircraftStatus.location);
-            const height = terrainGetHeight([Math.abs(point[0] + Env.aircraftStatus.location[0] - Math.floor((Env.aircraftStatus.location[0])/terrainOBJs[1].size_x) * terrainOBJs[1].size_x),
-                Math.abs(point[1] + Env.aircraftStatus.location[1]),
-                Math.abs(point[2] + Env.aircraftStatus.location[2] - Math.floor(Env.aircraftStatus.location[2]/terrainOBJs[1].size_z) * terrainOBJs[1].size_z)]);
-            if (height > point[1]) {
-                Env.isCrash = true;
-            }
-        }
 
-        if (!Env.isCrash) {
+        if (Env.isCrash) {
+            ourShader.setInt("isCrash", 1);
             console.log("Crashed!!!");
         }
         aircraftOBJs.forEach((obj, index) => {
@@ -648,8 +640,7 @@ export default async function main() {
             ourShader.setInt("useSpecular", 1);
             ourShader.setVec3("specular", vec3.fromValues(obj.specular[0], obj.specular[1], obj.specular[2]));
 
-            if (index == 7) {
-                let fanCenter = vec3.fromValues(0, 0, 1)
+            if (index === 7 && Env.isCrash === false) {
                 const modelOBJTmp = mat4.create();
                 mat4.translate(modelOBJTmp, modelOBJ, vec3.fromValues(0, 1, 0))
                 mat4.rotateZ(modelOBJTmp, modelOBJTmp, Math.cos(currentFrame * 0.1))
@@ -678,7 +669,8 @@ export default async function main() {
         const borders = terrainOBJs[1];
         const TransedMat = mat4.create();
         const x_block_offset = Math.floor(Env.aircraftStatus.location[0]/borders.size_x);
-        const tmpMat = mat4.create();	        const z_block_offset = Math.floor(Env.aircraftStatus.location[2]/borders.size_z);
+        const tmpMat = mat4.create();
+        const z_block_offset = Math.floor(Env.aircraftStatus.location[2]/borders.size_z);
         const x_flag = (2 + x_block_offset)%2;
         const z_flag = (2 + z_block_offset)%2;
         const lr_map=[1,0,3,2];
@@ -688,6 +680,19 @@ export default async function main() {
         const lr_id = lr_map[center_id];
         const fb_id = fb_map[center_id];
         const cross_id = cross_map[center_id];
+
+
+        for (let i = 0; i < aircraftOBBRotated.length; ++i) {
+            let point = aircraftOBBRotated[i];
+            const xt = Math.abs(point[0] + Env.aircraftStatus.location[0] - x_block_offset * terrainOBJs[1].size_x);
+            const zt = Math.abs(point[2] + Env.aircraftStatus.location[2] - z_block_offset * terrainOBJs[1].size_z);
+            const height = terrainGetHeight([x_flag ? Math.abs(terrainOBJs[1].size_x - xt) : xt,
+                Math.abs(point[1] + Env.aircraftStatus.location[1]),
+                z_flag ? Math.abs(terrainOBJs[1].size_z - zt) : zt]);
+            if (height > point[1] + Env.aircraftStatus.location[1]) {
+                Env.isCrash = true;
+            }
+        }
 
         terrainShader.setFloat("x_size",borders.size_x);
         terrainShader.setFloat("z_size",borders.size_z);
