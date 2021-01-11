@@ -20,7 +20,7 @@ let canvas;
 function genOBJBuffer(gl, data, material) {
     const objs = []
 
-    console.log(data);
+    // console.log(data);
 
     let t = -Number.MAX_VALUE;
     for (let i = 0; i < data.geometries.length; ++i) {
@@ -611,18 +611,8 @@ export default async function main() {
             return vec3.fromValues(res[0], res[1], res[2]);
         })
 
-        for (let i = 0; i < aircraftOBBRotated.length; ++i) {
-            let point = aircraftOBBRotated[i];
-            console.log(point, Env.aircraftStatus.location);
-            const height = terrainGetHeight([Math.abs(point[0] + Env.aircraftStatus.location[0] - Math.floor((Env.aircraftStatus.location[0])/terrainOBJs[1].size_x) * terrainOBJs[1].size_x),
-                Math.abs(point[1] + Env.aircraftStatus.location[1]),
-                Math.abs(point[2] + Env.aircraftStatus.location[2] - Math.floor(Env.aircraftStatus.location[2]/terrainOBJs[1].size_z) * terrainOBJs[1].size_z)]);
-            if (height > point[1]) {
-                Env.isCrash = true;
-            }
-        }
 
-        if (!Env.isCrash) {
+        if (Env.isCrash) {
             console.log("Crashed!!!");
         }
         aircraftOBJs.forEach((obj, index) => {
@@ -663,7 +653,8 @@ export default async function main() {
         const borders = terrainOBJs[1];
         const TransedMat = mat4.create();
         const x_block_offset = Math.floor(Env.aircraftStatus.location[0]/borders.size_x);
-        const tmpMat = mat4.create();	        const z_block_offset = Math.floor(Env.aircraftStatus.location[2]/borders.size_z);
+        const tmpMat = mat4.create();
+        const z_block_offset = Math.floor(Env.aircraftStatus.location[2]/borders.size_z);
         const x_flag = (2 + x_block_offset)%2;
         const z_flag = (2 + z_block_offset)%2;
         const lr_map=[1,0,3,2];
@@ -673,6 +664,20 @@ export default async function main() {
         const lr_id = lr_map[center_id];
         const fb_id = fb_map[center_id];
         const cross_id = cross_map[center_id];
+
+
+        for (let i = 0; i < aircraftOBBRotated.length; ++i) {
+            let point = aircraftOBBRotated[i];
+            console.log(point, Env.aircraftStatus.location);
+            const height = terrainGetHeight([Math.abs(point[0] + Env.aircraftStatus.location[0] - x_block_offset * terrainOBJs[1].size_x),
+                Math.abs(point[1] + Env.aircraftStatus.location[1]),
+                Math.abs(point[2] + Env.aircraftStatus.location[2] - z_block_offset * terrainOBJs[1].size_z)]);
+            console.log("height: ", height);
+            if (height > point[1] + Env.aircraftStatus.location[1]) {
+                console.assert("crash!")
+                Env.isCrash = true;
+            }
+        }
 
         terrainShader.setFloat("x_size",borders.size_x);
         terrainShader.setFloat("z_size",borders.size_z);
