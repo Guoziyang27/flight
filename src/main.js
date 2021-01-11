@@ -664,8 +664,8 @@ export default async function main() {
         const TransedMat = mat4.create();
         const x_block_offset = Math.floor(Env.aircraftStatus.location[0]/borders.size_x);
         const tmpMat = mat4.create();	        const z_block_offset = Math.floor(Env.aircraftStatus.location[2]/borders.size_z);
-        const x_flag = x_block_offset%2;
-        const z_flag = z_block_offset%2;
+        const x_flag = (2 + x_block_offset)%2;
+        const z_flag = (2 + z_block_offset)%2;
         const lr_map=[1,0,3,2];
         const fb_map=[2,3,0,1];
         const cross_map = [3,2,1,0];
