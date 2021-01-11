@@ -19,9 +19,9 @@ import ftURL from './Skybox/ft.png'
 
 let canvas;
 
-function genOBJBuffer(gl, data, material) {
+export function genOBJBuffer(gl, data, material) {
     const objs = []
-
+    console.log("****");
     // console.log(data);
 
     let t = -Number.MAX_VALUE;
@@ -453,6 +453,7 @@ export default async function main() {
     Env.SCR_WIDTH = canvas.width;
     Env.SCR_HEIGHT = canvas.height;
     const gl = canvas.getContext('webgl2');
+    Env.gl = gl;
     gl.enable(gl.DEPTH_TEST)
 
     if (!gl) {
@@ -621,7 +622,11 @@ export default async function main() {
             z[0], z[1], z[2], 0,
             0, 0, 0, 1);
         mat4.multiply(modelOBJ, modelRotation, modelOBJ);
-        const aircraftOBBRotated = aircraftOBB.map((v) => {
+        const aircraftOBBRotated = Env.uploadedOBJ ? Env.aircraftOBB.map((v) => {
+            const res = vec4.create();
+            vec4.transformMat4(res, vec4.fromValues(v[0], v[1], v[2], 1), modelOBJ);
+            return vec3.fromValues(res[0], res[1], res[2]);
+        }) : aircraftOBB.map((v) => {
             const res = vec4.create();
             vec4.transformMat4(res, vec4.fromValues(v[0], v[1], v[2], 1), modelOBJ);
             return vec3.fromValues(res[0], res[1], res[2]);
@@ -632,28 +637,43 @@ export default async function main() {
             ourShader.setInt("isCrash", 1);
             console.log("Crashed!!!");
         }
-        aircraftOBJs.forEach((obj, index) => {
-            ourShader.setVec3("lightPosition", vec3.fromValues(1, 1, 1));
-            ourShader.setInt("useLightPoint", 0);
-            ourShader.setInt("useTexture", 0);
-            ourShader.setVec3("ambient", vec3.fromValues(obj.ambient[0], obj.ambient[1], obj.ambient[2]));
-            ourShader.setInt("useSpecular", 1);
-            ourShader.setVec3("specular", vec3.fromValues(obj.specular[0], obj.specular[1], obj.specular[2]));
+        if (!Env.uploadedOBJ) {
+            aircraftOBJs.forEach((obj, index) => {
+                ourShader.setVec3("lightPosition", vec3.fromValues(1, 1, 1));
+                ourShader.setInt("useLightPoint", 0);
+                ourShader.setInt("useTexture", 0);
+                ourShader.setVec3("ambient", vec3.fromValues(obj.ambient[0], obj.ambient[1], obj.ambient[2]));
+                ourShader.setInt("useSpecular", 1);
+                ourShader.setVec3("specular", vec3.fromValues(obj.specular[0], obj.specular[1], obj.specular[2]));
 
-            if (index === 7 && Env.isCrash === false) {
-                const modelOBJTmp = mat4.create();
-                mat4.translate(modelOBJTmp, modelOBJ, vec3.fromValues(0, 1, 0))
-                mat4.rotateZ(modelOBJTmp, modelOBJTmp, Math.cos(currentFrame * 0.1))
-                mat4.translate(modelOBJTmp, modelOBJTmp, vec3.fromValues(0, -1, 0))
-                ourShader.setMat4("model", modelOBJTmp);
-                gl.bindVertexArray(obj.VAO);
-                gl.drawArrays(gl.TRIANGLES, 0, obj.num);
-            } else {
+                if (index === 7 && Env.isCrash === false) {
+                    const modelOBJTmp = mat4.create();
+                    mat4.translate(modelOBJTmp, modelOBJ, vec3.fromValues(0, 1, 0))
+                    mat4.rotateZ(modelOBJTmp, modelOBJTmp, Math.cos(currentFrame * 0.1))
+                    mat4.translate(modelOBJTmp, modelOBJTmp, vec3.fromValues(0, -1, 0))
+                    ourShader.setMat4("model", modelOBJTmp);
+                    gl.bindVertexArray(obj.VAO);
+                    gl.drawArrays(gl.TRIANGLES, 0, obj.num);
+                } else {
+                    ourShader.setMat4("model", modelOBJ);
+                    gl.bindVertexArray(obj.VAO);
+                    gl.drawArrays(gl.TRIANGLES, 0, obj.num);
+                }
+            })
+        } else {
+            Env.aircraftOBJs.forEach((obj, index) => {
+                ourShader.setVec3("lightPosition", vec3.fromValues(1, 1, 1));
+                ourShader.setInt("useLightPoint", 0);
+                ourShader.setInt("useTexture", 0);
+                ourShader.setVec3("ambient", vec3.fromValues(obj.ambient[0], obj.ambient[1], obj.ambient[2]));
+                ourShader.setInt("useSpecular", 1);
+                ourShader.setVec3("specular", vec3.fromValues(obj.specular[0], obj.specular[1], obj.specular[2]));
+
                 ourShader.setMat4("model", modelOBJ);
                 gl.bindVertexArray(obj.VAO);
                 gl.drawArrays(gl.TRIANGLES, 0, obj.num);
-            }
-        })
+            })
+        }
         
         terrainShader.use();
         terrainShader.setMat4("projection", projection);
@@ -764,21 +784,23 @@ export default async function main() {
         terrainShader.setMat4("model", TransedMat);
         terrainShader.setInt("id",cross_id);
         gl.drawArrays(gl.TRIANGLES, 0, terrainOBJs[0].num);
-        //Draw Boom
-        boomShader.use();
-        boomShader.setInt('u_boom',BoomTexture);
-        boomShader.setMat4('view',view);
-        boomShader.setMat4('projection',projection);
-        //gl.enable(gl.BLEND);
-        gl.disable(gl.DEPTH_TEST);
-        gl.bindVertexArray(BoomVAO);
-        gl.bindTexture(gl.TEXTURE_2D, BoomTexture);
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-        gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-        gl.disable(gl.BLEND);
-        gl.enable(gl.DEPTH_TEST);
-        //Boom ends
+        if (Env.isCrash) {
+            //Draw Boom
+            boomShader.use();
+            boomShader.setInt('u_boom', BoomTexture);
+            boomShader.setMat4('view', view);
+            boomShader.setMat4('projection', projection);
+            //gl.enable(gl.BLEND);
+            gl.disable(gl.DEPTH_TEST);
+            gl.bindVertexArray(BoomVAO);
+            gl.bindTexture(gl.TEXTURE_2D, BoomTexture);
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl.disable(gl.BLEND);
+            gl.enable(gl.DEPTH_TEST);
+            //Boom ends
+        }
 
 
 

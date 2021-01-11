@@ -27,6 +27,12 @@ export default class Env {
 
     static PI = 3.141592653589793
 
+    static gl;
+
+    static uploadedOBJ = false;
+    static aircraftOBJs;
+    static aircraftOBB;
+
 
     static SCR_WIDTH = 800;
     static SCR_HEIGHT = 600;

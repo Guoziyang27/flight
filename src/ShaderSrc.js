@@ -307,7 +307,8 @@ uniform mat4 projection;
 
 void main()
 {
-    gl_Position = projection * view * vec4(aPos, 1.0f);
+    vec4 position = projection * view * vec4(aPos, 1.0f);
+    gl_Position = position / position.w; 
     Texcoord = aTexcoord;
 }
 `,
