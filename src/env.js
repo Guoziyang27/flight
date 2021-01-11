@@ -123,9 +123,9 @@ export default class Env {
                 Env.deltaTime / 10 * status.U * status.z[2]]);
         // console.log(status.z[2]);
 
-        status.location[0] += locationDelta[0];
-        status.location[1] += locationDelta[1];
-        status.location[2] += locationDelta[2];
+        // status.location[0] += locationDelta[0];
+        // status.location[1] += locationDelta[1];
+        // status.location[2] += locationDelta[2];
         // console.log(status.location[2]);
 
     }

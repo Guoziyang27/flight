@@ -173,17 +173,24 @@ out vec3 ourColor;
 out vec3 ourNormal;
 out vec3 ourPosition;
 out vec2 TexCoord;
+
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 view_from_light;
+uniform mat4 projection_from_light;
+
 uniform int id;
 uniform float x_size;
 uniform float z_size;
+
+out vec4 v_PositionFromLight;
 void main()
 {
     if(id == 0)
     {
         gl_Position = projection * view * model * vec4(aPos, 1.0f);
+        v_PositionFromLight = projection_from_light * view_from_light * model * vec4(aPos, 1.0f);
         ourColor = aColor;
         ourNormal = (transpose(inverse(model)) * vec4(aNormal, 1.0f)).xyz;
         ourPosition = (model * vec4(aPos, 1.0f)).xyz;
@@ -194,6 +201,7 @@ void main()
         vec3 bPos = vec3(x_size - aPos.x, aPos.y, aPos.z);
         vec3 bNormal = vec3(-aNormal.x, aNormal.y, aNormal.z);
         gl_Position = projection * view * model * vec4(bPos, 1.0f);
+        v_PositionFromLight = projection_from_light * view_from_light * model * vec4(bPos, 1.0f);
         ourColor = aColor;
         ourNormal = (transpose(inverse(model)) * vec4(bNormal, 1.0f)).xyz;
         ourPosition = (model * vec4(bPos, 1.0f)).xyz;
@@ -204,6 +212,7 @@ void main()
         vec3 cPos = vec3(aPos.x, aPos.y, z_size - aPos.z);
         vec3 cNormal = vec3(aNormal.x, aNormal.y, -aNormal.z);
         gl_Position = projection * view * model * vec4(cPos, 1.0f);
+        v_PositionFromLight = projection_from_light * view_from_light * model * vec4(cPos, 1.0f);
         ourColor = aColor;
         ourNormal = (transpose(inverse(model)) * vec4(cNormal, 1.0f)).xyz;
         ourPosition = (model * vec4(cPos, 1.0f)).xyz;
@@ -214,6 +223,7 @@ void main()
         vec3 dPos = vec3(x_size - aPos.x, aPos.y, z_size - aPos.z);
         vec3 dNormal = vec3(-aNormal.x, aNormal.y, -aNormal.z);
         gl_Position = projection * view * model * vec4(dPos, 1.0f);
+        v_PositionFromLight = projection_from_light * view_from_light * model * vec4(dPos, 1.0f);
         ourColor = aColor;
         ourNormal = (transpose(inverse(model)) * vec4(dNormal, 1.0f)).xyz;
         ourPosition = (model * vec4(dPos, 1.0f)).xyz;
@@ -238,11 +248,13 @@ uniform vec3 ambient;
 uniform int useSpecular;
 uniform vec3 specular;
 
+uniform sampler2D u_ShadowMap;
+in vec4 v_PositionFromLight;
+
 in vec3 ourColor;
 in vec3 ourNormal;
 in vec3 ourPosition;
 in vec2 TexCoord;
-
 
 float beckmannDistribution(float x, float roughness) {
     float NdotH = max(x, 0.0001);
@@ -279,6 +291,11 @@ float cookTorranceSpecular(
 
 void main()
 {
+    vec3 ShadowCoord = (v_PositionFromLight.xyz / v_PositionFromLight.w)  * 0.5 + 0.5;
+    vec4 rgbaDepth = texture(u_ShadowMap, ShadowCoord.xy);
+    float depth = rgbaDepth.a;
+    float vis = (ShadowCoord.z > depth + 0.05) ? 1.0 : 0.6;
+
     vec3 viewDirection = normalize(eyePosition - ourPosition);
     vec3 lightDirection = normalize(lightPosition);
     if (useLightPoint == 1) {
@@ -307,7 +324,9 @@ void main()
     vec4 afterTexture = texture(ourTexture, vec2(0.2f, 0.2f));
     vec3 color = vec3((carry.x + ambient.x) * afterTexture.x, (carry.y + ambient.y) * afterTexture.y, (carry.z + ambient.z) * afterTexture.z);
     color = color / (color + 1.0);
-    FragColor = vec4(color, 1.0);
+    FragColor = vec4(color * vis, 1.0);
+    // FragColor = vec4(rgbaDepth.aaa, 1.0);
+    // FragColor = vec4(vis, vis, vis, 1.0);
 }`,
 shadowVS: `#version 300 es
 precision mediump float;
@@ -330,8 +349,9 @@ void main()
 shadowFS: `#version 300 es
 precision mediump float;
 
+out vec4 FragColor;
 void main()
 {
-    gl_FragColor = vec4( 0.0, 0.0, 0.0, gl_FragCoord.z);\n
+    FragColor = vec4( gl_FragCoord.z, gl_FragCoord.z, gl_FragCoord.z, gl_FragCoord.z);\n
 }`
 }

@@ -412,56 +412,30 @@ function getVisionRange(near, far, fov, aspect) {
 }
 
 function initFramebufferObject(gl) {
-    let offset_width = 256
-    let offset_height = 256
+    let offset_width = 1024
+    let offset_height = 1024
     var framebuffer, texture, depthBuffer;
 
-    function error() {
-        if(framebuffer) gl.deleteFramebuffer(framebuffer);
-        if(texture) gl.deleteFramebuffer(texture);
-        if(depthBuffer) gl.deleteFramebuffer(depthBuffer);
-        return null;
-    }
-
     framebuffer = gl.createFramebuffer();
-    if(!framebuffer){
-        console.log("无法创建帧缓冲区对象");
-        return error();
-    }
-
     texture = gl.createTexture();
-    if(!texture){
-        console.log("无法创建纹理对象");
-        return error();
-    }
+
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, offset_width, offset_height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    framebuffer.texture = texture;//将纹理对象存入framebuffer
-
-    //创建渲染缓冲区对象并设置其尺寸和参数
-    depthBuffer = gl.createRenderbuffer();
-    if(!depthBuffer){
-        console.log("无法创建渲染缓冲区对象");
-        return error();
-    }
-
-    gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, offset_width, offset_height);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_BORDER);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_BORDER);
+    // let borderColor = [1.0, 1.0, 1.0, 1.0 ];
+    // gl.texParameterfv(gl.TEXTURE_2D, gl.TEXTURE_BORDERP_COLOR, borderColor);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
 
-    var e = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-    if(gl.FRAMEBUFFER_COMPLETE !== e){
-        console.log("渲染缓冲区设置错误"+e.toString());
-        return error();
-    }
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, texture, 0);
+    gl.drawBuffers([gl.NONE]);
+    gl.readBuffer(gl.NONE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    framebuffer.texture = texture;
     return framebuffer;
 }
 
@@ -508,6 +482,10 @@ export default async function main() {
     const skyShader = new Shader(gl, "skyVsShader", 'skyFsShader');
     const terrainShader = new Shader(gl, "terrainVsShader", 'terrainFsShader');
     const shadowShader = new Shader(gl, "shadowVS", "shadowFS");
+
+    if(gl.getError() != gl.NO_ERROR) {
+        alert("Something went wrong")
+    }
 
     const objHref = rawOBJ;
     const [aircraftOBJ, materials] = await getOBJFromPath(objHref);
@@ -585,6 +563,14 @@ export default async function main() {
 
     //SkyBox Part Ends
 
+    const fbo = initFramebufferObject(gl)
+    if (!fbo) {
+        alert("creating framebuffer failed")
+    }
+    console.log(fbo)
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fbo.texture);
 
     function render() {
 
@@ -594,15 +580,59 @@ export default async function main() {
         Env.lastFrame = currentFrame;
 
         Env.processInput();
+        
+        // shadow content
+        
+        const shadow_projection = mat4.create()
+        mat4.perspective(shadow_projection, 70, 256/256, 0.1, 100);
+        // mat4.ortho(shadow_projection, -10, 10, -10, 10, 1, 7.5)
+        const shadow_view = mat4.create()
+        mat4.lookAt(shadow_view, vec3.fromValues(1.0, 1.0, 1.0), vec3.fromValues(-1,-1,-1), vec3.fromValues(0.0, 1.0, 0.0))
+        
+        shadowShader.use();
+        shadowShader.setMat4("projection", shadow_projection)
+        shadowShader.setMat4("view", shadow_view)
+        
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.clearColor(0.2, 0.3, 0.3, 1.0);
+        gl.enable(gl.DEPTH_TEST)
+        gl.viewport(0.0,0.0,1024,1024);
+        
+        
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        aircraftOBJs.forEach((obj, index) => {
+            const x = Env.aircraftStatus.x;
+            const y = Env.aircraftStatus.y;
+            const z = Env.aircraftStatus.z;
 
+            const modelOBJ = mat4.create();
+            mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0));
+
+            if (index == 7) {
+                let fanCenter = vec3.fromValues(0, 0, 1)
+                mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, 1, 0))
+                mat4.rotateZ(modelOBJ, modelOBJ, Math.cos(currentFrame * 0.1))
+                mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0))
+            }
+            const modelRotation = mat4.fromValues(x[0], x[1], x[2], 0,
+                y[0], y[1], y[2], 0,
+                z[0], z[1], z[2], 0,
+                0, 0, 0, 1);
+            mat4.multiply(modelOBJ, modelRotation, modelOBJ);
+            shadowShader.setMat4("model", modelOBJ);
+            gl.bindVertexArray(obj.VAO);
+            gl.drawArrays(gl.TRIANGLES, 0, obj.num);
+        })
+
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        // model content
+
+        gl.viewport(0.0, 0.0, canvas.width, canvas.height);
         gl.enable(gl.DEPTH_TEST)
         gl.clearColor(0.2, 0.3, 0.3, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-
         // activate shader
-
-
 
 //region
 
@@ -623,38 +653,6 @@ export default async function main() {
         skyShader.use();
 
 // Write to shadow buffer        
-        const shadow_projection = mat4.create()
-        mat4.perspective(shadow_projection, fov, 256/256, near, far);
-        const shadow_view = mat4.create()
-        mat4.lookAt(shadow_view, vec3.fromValues(1.0, 1.0, 1.0), vec3.fromValues(0,0,0), vec3.fromValues(0.0, 1.0, 0.0))
-    
-        shadowShader.use();
-        shadowShader.setMat4("projection", shadow_projection)
-        shadowShader.setMat4("view", shadow_view)
-
-        aircraftOBJs.forEach((obj, index) => {
-            const x = Env.aircraftStatus.x;
-            const y = Env.aircraftStatus.y;
-            const z = Env.aircraftStatus.z;
-
-            const modelOBJ = mat4.create();
-            mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0));
-
-            if (index == 7) {
-                mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, 1, 0))
-                mat4.rotateZ(modelOBJ, modelOBJ, Math.cos(currentFrame * 0.1))
-                mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0))
-            }
-            const modelRotation = mat4.fromValues(x[0], x[1], x[2], 0,
-                y[0], y[1], y[2], 0,
-                z[0], z[1], z[2], 0,
-                0, 0, 0, 1);
-            mat4.multiply(modelOBJ, modelRotation, modelOBJ);
-            ourShader.setMat4("model", modelOBJ);
-            shadowShader.setMat4("model", modelOBJ);
-            gl.bindVertexArray(obj.VAO);
-            gl.drawArrays(gl.TRIANGLES, 0, obj.num);
-        })
 
         const view_tmp = mat4.create();
         const view_inverse = mat4.create();
@@ -759,9 +757,17 @@ export default async function main() {
             gl.drawArrays(gl.TRIANGLES, 0, obj.num);
         })
         
+
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, terrainTexture);
+        gl.activeTexture(gl.TEXTURE1)
+        gl.bindTexture(gl.TEXTURE_2D, fbo.texture);
+
         terrainShader.use();
         terrainShader.setMat4("projection", projection);
         terrainShader.setMat4("view", view);
+        terrainShader.setMat4("projection_from_light", shadow_projection);
+        terrainShader.setMat4("view_from_light", shadow_view);
         terrainShader.setVec3("eyePosition", Env.cameraPos);
         terrainShader.setVec3("lightPosition", vec3.fromValues(1, 1, 1));
         terrainShader.setFloat("roughness", 0.8);
@@ -769,6 +775,7 @@ export default async function main() {
         terrainShader.setInt("useLightPoint", 0);
         terrainShader.setVec3("ambient", vec3.fromValues(1, 1, 1));
         terrainShader.setInt("ourTexture", 0);
+        terrainShader.setInt("u_ShadowMap", 1);
         terrainShader.setInt("useTexture", 1);
         const borders = terrainOBJs[1];
         const TransedMat = mat4.create();
@@ -794,8 +801,9 @@ export default async function main() {
         );
 
         terrainShader.setMat4("model", TransedMat);
+
         gl.bindVertexArray(terrainOBJs[0].VAO);
-        gl.bindTexture(gl.TEXTURE_2D, terrainTexture);
+
         terrainShader.setInt("id",center_id);
         gl.drawArrays(gl.TRIANGLES, 0, terrainOBJs[0].num);
 
@@ -854,12 +862,8 @@ export default async function main() {
         terrainShader.setMat4("model", TransedMat);
         terrainShader.setInt("id",cross_id);
         gl.drawArrays(gl.TRIANGLES, 0, terrainOBJs[0].num);
-
-
-
-
-
         requestAnimationFrame(render);
     }
     requestAnimationFrame(render);
+    // render();
 }
