@@ -45,6 +45,8 @@ uniform vec3 ambient;
 uniform int useSpecular;
 uniform vec3 specular;
 
+uniform int isCrash;
+
 in vec3 ourColor;
 in vec3 ourNormal;
 in vec3 ourPosition;
@@ -58,30 +60,6 @@ float beckmannDistribution(float x, float roughness) {
     float roughness2 = roughness * roughness;
     float denom = 3.141592653589793 * roughness2 * cos2Alpha * cos2Alpha;
     return exp(tan2Alpha / roughness2) / denom;
-}
-
-float cookTorranceSpecular(
-    vec3 lightDirection,
-    vec3 viewDirection,
-    vec3 surfaceNormal,
-    float roughness,
-    float fresnel) {
-
-    float VdotN = max(dot(viewDirection, surfaceNormal), 0.0);
-    float LdotN = max(dot(lightDirection, surfaceNormal), 0.0);
-    //Ha1f angle vector
-    vec3 H = normalize(lightDirection + viewDirection);
-    //Geometric term
-    float NdotH = max(dot(surfaceNormal, H), 0.0);
-    float VdotH = max(dot(viewDirection, H), 0.000001);
-    float x = 2.0 * NdotH / VdotH;
-    float G = min(1.0, min(x * VdotN, x * LdotN));
-    //Distribution term
-    float D = beckmannDistribution(NdotH, roughness);
-    // Fresnel term
-    float F = pow(1.0 - VdotN, fresnel);
-
-    return G * F * D / max(3.14159265 * VdotN * LdotN, 0.000001);
 }
 
 void main()
@@ -116,7 +94,11 @@ void main()
         if (useTexture == 0) {
             afterTexture = vec4(ourColor.x, ourColor.y, ourColor.z, 1.0);
         }
-        FragColor = vec4(carry * afterTexture.x, carry * afterTexture.y, carry * afterTexture.z, 1.0);
+        if (isCrash == 1) {
+            FragColor = vec4(0.1, 0.1, 0.1, 1.0);
+        } else {
+            FragColor = vec4(carry * afterTexture.x, carry * afterTexture.y, carry * afterTexture.z, 1.0);
+        }
     } else {
         vec3 power = G * specular * D / (max(3.14159265 * VdotN * LdotN, 0.000001));
         vec3 carry = ((1.0 - specular) + power) * LdotN;
@@ -126,8 +108,11 @@ void main()
         }
         vec3 color = vec3((carry.x + ambient.x) * afterTexture.x, (carry.y + ambient.y) * afterTexture.y, (carry.z + ambient.z) * afterTexture.z);
         color = color / (color + 1.0);
-        FragColor = vec4(color, 1.0);
-        // FragColor = vec4(1, 1, 1, 1.0);
+        if (isCrash == 1) {
+            FragColor = vec4(0.1, 0.1, 0.1, 1.0);
+        } else {
+            FragColor = vec4(color, 1.0);
+        }
     }
 }`,
 skyVsShader:`#version 300 es

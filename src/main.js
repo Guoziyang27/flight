@@ -591,6 +591,7 @@ export default async function main() {
         ourShader.setFloat("fresnel", 5);
         ourShader.setInt("useLightPoint", 1);
         ourShader.setInt("useSpecular", 0);
+        ourShader.setInt("isCrash", 0);
 
         const modelOBJ = mat4.create();
         mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0));
@@ -611,6 +612,7 @@ export default async function main() {
 
 
         if (Env.isCrash) {
+            ourShader.setInt("isCrash", 1);
             console.log("Crashed!!!");
         }
         aircraftOBJs.forEach((obj, index) => {
@@ -621,8 +623,7 @@ export default async function main() {
             ourShader.setInt("useSpecular", 1);
             ourShader.setVec3("specular", vec3.fromValues(obj.specular[0], obj.specular[1], obj.specular[2]));
 
-            if (index == 7) {
-                let fanCenter = vec3.fromValues(0, 0, 1)
+            if (index === 7 && Env.isCrash === false) {
                 const modelOBJTmp = mat4.create();
                 mat4.translate(modelOBJTmp, modelOBJ, vec3.fromValues(0, 1, 0))
                 mat4.rotateZ(modelOBJTmp, modelOBJTmp, Math.cos(currentFrame * 0.1))
