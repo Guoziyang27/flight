@@ -2,6 +2,7 @@ import main from './main'
 import React from 'react'
 import './App.css'
 import {onSubmit} from "./UploadFile";
+import Env from "./env";
 
 class App extends React.Component {
     componentDidMount() {
@@ -26,6 +27,7 @@ class App extends React.Component {
                     </label>
                     <input type="button" value="Submit" onClick={onSubmit} />
                 </form>
+                <button id="restart-button" onClick={Env.restart}>RESTART THE GAME</button>
             </div>
         );
     }
