@@ -167,7 +167,7 @@ export default class Env {
 
 
     static processInput() {
-        const controlSpeed = 0.000005 * Env.deltaTime;
+        const controlSpeed = 0.000002 * Env.deltaTime;
         let My = -Env.aircraftStatus.Q / Env.deltaTime / 2,
             Mx = -Env.aircraftStatus.P / Env.deltaTime / 2,
             Mz = -Env.aircraftStatus.R / Env.deltaTime / 2, Fx = 0;
