@@ -6,6 +6,7 @@ import {parseOBJ} from "./loadOBJ";
 
 import rawOBJ from './AircraftModel/3d-model1.obj'
 import rawMTl from './AircraftModel/3d-model1.mtl'
+import boomImg from './AircraftModel/exploision1.png'
 import rawTerrain from './Terrain/plain.obj'
 import terrainImg from './Terrain/green.png'
 import upURL from './Skybox/up.png'
@@ -14,6 +15,7 @@ import rtURL from './Skybox/rt.png'
 import lfURL from './Skybox/lf.png'
 import bkURL from './Skybox/bk.png'
 import ftURL from './Skybox/ft.png'
+
 
 let canvas;
 
@@ -306,6 +308,32 @@ function genSkyBoxBuffer(gl) {
 
 }
 
+function genBoomBuffer(gl) {
+
+    const BoomVAO = gl.createVertexArray();
+    const BoomVBO = gl.createBuffer();
+
+    gl.bindVertexArray(BoomVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, BoomVBO);
+    const BoomVertexs = new Float32Array([
+        -1.0, 1.0, 0.0, 0.0, 1.0,
+        -1.0, -1.0, 0.0, 0.0, 0.0,
+        1.0, 1.0, 0.0, 1.0, 1.0,
+        1.0, -1.0, 0.0, 1.0, 0.0
+    ]);
+    gl.bufferData(gl.ARRAY_BUFFER, BoomVertexs, gl.STATIC_DRAW);
+    // position attribute
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 5 * 4, 0);
+    gl.enableVertexAttribArray(0);
+
+    // normal attribute
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 5 * 4, (3 * 4));
+    gl.enableVertexAttribArray(1);
+
+    return [BoomVBO, BoomVAO];
+
+}
+
 function getVisionRange(near, far, fov, aspect) {
     // far = 2 * far;
     // fov = 2 * fov;
@@ -411,22 +439,6 @@ function getVisionRange(near, far, fov, aspect) {
     }
 }
 
-function visionToworld(visionRange, view_inverse) {
-    const visionMin_world = vec4.create();
-    vec4.transformMat4(visionMin_world,
-        vec4.fromValues(visionRange.x_range.min,visionRange.y_range.min,visionRange.z_range.min,1.0),
-        view_inverse);
-    const visionMax_world = vec4.create();
-    vec4.transformMat4(visionMax_world,
-        vec4.fromValues(visionRange.x_range.max,visionRange.y_range.max,visionRange.z_range.max,1.0),
-        view_inverse);
-    return {
-        x_range: {min: visionMin_world[0], max: visionMax_world[0]},
-        y_range: {min: visionMin_world[1], max: visionMax_world[1]},
-        z_range: {min: visionMin_world[2], max: visionMax_world[2]},
-    };
-}
-
 export default async function main() {
     console.log("begin main")
 
@@ -453,6 +465,7 @@ export default async function main() {
     const ourShader = new Shader(gl, "vsShader", 'fsShader');
     const skyShader = new Shader(gl, "skyVsShader", 'skyFsShader');
     const terrainShader = new Shader(gl, "terrainVsShader", 'terrainFsShader');
+    const boomShader = new Shader(gl,"boomVsShader","boomFsShader");
 
     const objHref = rawOBJ;
     const [aircraftOBJ, materials] = await getOBJFromPath(objHref);
@@ -526,9 +539,12 @@ export default async function main() {
     });
     gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    skyShader.setInt("skybox", 0);
-
     //SkyBox Part Ends
+
+    //Boom Parts Begins
+    const[BoomVBO,BoomVAO]=genBoomBuffer(gl);
+    const BoomTexture = createTexture(gl,boomImg);
+    //Boom Parts Ends
 
 
     function render() {
@@ -561,9 +577,7 @@ export default async function main() {
         let t = vec3.create();
         vec3.add(t, Env.cameraPos, Env.cameraFront);
         mat4.lookAt(view, Env.cameraPos, t, Env.cameraUp);
-        //Calculate Vision range
-        //这个是相机坐标系
-        const visionRange = getVisionRange(near, far, fov, aspect)
+
         //Draw Skybox
         skyShader.use();
         const view_tmp = mat4.create();
@@ -584,6 +598,7 @@ export default async function main() {
         gl.bindVertexArray(skyVAO);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         //Skybox ends
+
         ourShader.use();
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
@@ -744,8 +759,21 @@ export default async function main() {
         terrainShader.setMat4("model", TransedMat);
         terrainShader.setInt("id",cross_id);
         gl.drawArrays(gl.TRIANGLES, 0, terrainOBJs[0].num);
-
-
+        //Draw Boom
+        boomShader.use();
+        boomShader.setInt('u_boom',BoomTexture);
+        boomShader.setMat4('view',view);
+        boomShader.setMat4('projection',projection);
+        //gl.enable(gl.BLEND);
+        gl.disable(gl.DEPTH_TEST);
+        gl.bindVertexArray(BoomVAO);
+        gl.bindTexture(gl.TEXTURE_2D, BoomTexture);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+        gl.disable(gl.BLEND);
+        gl.enable(gl.DEPTH_TEST);
+        //Boom ends
 
 
 

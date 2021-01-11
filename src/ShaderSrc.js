@@ -308,5 +308,36 @@ void main()
     vec3 color = vec3((carry.x + ambient.x) * afterTexture.x, (carry.y + ambient.y) * afterTexture.y, (carry.z + ambient.z) * afterTexture.z);
     color = color / (color + 1.0);
     FragColor = vec4(color, 1.0);
-}`
+}`,
+boomVsShader:`#version 300 es
+precision mediump float;
+
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexcoord;
+
+out vec2 Texcoord;
+
+uniform mat4 view;
+uniform mat4 projection;
+
+void main()
+{
+    gl_Position = projection * view * vec4(aPos, 1.0f);
+    Texcoord = aTexcoord;
+}
+`,
+boomFsShader:`#version 300 es
+precision mediump float;
+ 
+out vec4 FragColor;
+
+in vec2 Texcoord;
+
+uniform sampler2D u_boom;
+
+void main()
+{
+    FragColor = texture(u_boom, Texcoord);
+}
+`
 }
