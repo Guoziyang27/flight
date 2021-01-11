@@ -167,8 +167,6 @@ function genTerrainBuffer(gl, data) {
         heights[x][z] = data.geometries[0].data.position[i + 1];
     }
     const getHeight = ([x, y, z]) => {
-        console.log(Math.floor((x) / scaleFactor * t % x_max));
-        console.log(Math.floor((z) / scaleFactor * t % z_max));
         return heights[Math.floor((x) / scaleFactor * t % x_max)][Math.floor((z) / scaleFactor * t % z_max)] / t * scaleFactor - scaleFactor / 20;
     }
 
@@ -554,7 +552,7 @@ export default async function main() {
         const projection = mat4.create();
         const fov = glMatrix.toRadian(Env.fov);
         const near = 0.1;
-        const far = 1000;
+        const far = 5000;
         const aspect = Env.SCR_WIDTH / Env.SCR_HEIGHT;
         mat4.perspective(projection, fov, aspect, near, far);
         const view = mat4.create();
@@ -563,7 +561,7 @@ export default async function main() {
         mat4.lookAt(view, Env.cameraPos, t, Env.cameraUp);
         //Calculate Vision range
         //这个是相机坐标系
-        const visionRange = getVisionRange(near, far, fov, aspect)
+        // const visionRange = getVisionRange(near, far, fov, aspect)
         //Draw Skybox
         skyShader.use();
         const view_tmp = mat4.create();
@@ -668,13 +666,12 @@ export default async function main() {
 
         for (let i = 0; i < aircraftOBBRotated.length; ++i) {
             let point = aircraftOBBRotated[i];
-            console.log(point, Env.aircraftStatus.location);
-            const height = terrainGetHeight([Math.abs(point[0] + Env.aircraftStatus.location[0] - x_block_offset * terrainOBJs[1].size_x),
+            const xt = Math.abs(point[0] + Env.aircraftStatus.location[0] - x_block_offset * terrainOBJs[1].size_x);
+            const zt = Math.abs(point[2] + Env.aircraftStatus.location[2] - z_block_offset * terrainOBJs[1].size_z);
+            const height = terrainGetHeight([x_flag ? Math.abs(terrainOBJs[1].size_x - xt) : xt,
                 Math.abs(point[1] + Env.aircraftStatus.location[1]),
-                Math.abs(point[2] + Env.aircraftStatus.location[2] - z_block_offset * terrainOBJs[1].size_z)]);
-            console.log("height: ", height);
+                z_flag ? Math.abs(terrainOBJs[1].size_z - zt) : zt]);
             if (height > point[1] + Env.aircraftStatus.location[1]) {
-                console.assert("crash!")
                 Env.isCrash = true;
             }
         }
