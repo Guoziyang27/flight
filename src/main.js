@@ -765,9 +765,19 @@ export default async function main() {
         terrainShader.setInt("id",cross_id);
         gl.drawArrays(gl.TRIANGLES, 0, terrainOBJs[0].num);
         //Draw Boom
+        mat4.copy(view_tmp, view);
+        view_tmp[0]=1.0;
+        view_tmp[1]=0.0;
+        view_tmp[2]=0.0;
+        view_tmp[4]=0.0;
+        view_tmp[5]=1.0;
+        view_tmp[6]=0.0;
+        view_tmp[7]=0.0;
+        view_tmp[8]=0.0;
+        view_tmp[9]=1.0;
         boomShader.use();
         boomShader.setInt('u_boom',BoomTexture);
-        boomShader.setMat4('view',view);
+        boomShader.setMat4('view',view_tmp);
         boomShader.setMat4('projection',projection);
         //gl.enable(gl.BLEND);
         gl.disable(gl.DEPTH_TEST);
