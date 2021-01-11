@@ -411,7 +411,7 @@ function getVisionRange(near, far, fov, aspect) {
     }
 }
 
-function initFramebufferObject(gl) {
+function _initFramebufferObject(gl) {
     let offset_width = 1024
     let offset_height = 1024
     var framebuffer, texture, depthBuffer;
@@ -438,6 +438,68 @@ function initFramebufferObject(gl) {
     framebuffer.texture = texture;
     return framebuffer;
 }
+
+function initFramebufferObject(gl) {
+    var framebuffer, texture, depthBuffer;
+    let offset_width = 1024
+    let offset_height = 1024
+    //定义错误函数
+    function error() {
+        if(framebuffer) gl.deleteFramebuffer(framebuffer);
+        if(texture) gl.deleteFramebuffer(texture);
+        if(depthBuffer) gl.deleteFramebuffer(depthBuffer);
+        return null;
+    }
+
+    //创建帧缓冲区对象
+    framebuffer = gl.createFramebuffer();
+    if(!framebuffer){
+        console.log("无法创建帧缓冲区对象");
+        return error();
+    }
+
+    //创建纹理对象并设置其尺寸和参数
+    texture = gl.createTexture();
+    if(!texture){
+        console.log("无法创建纹理对象");
+        return error();
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, offset_width, offset_height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    framebuffer.texture = texture;//将纹理对象存入framebuffer
+
+    //创建渲染缓冲区对象并设置其尺寸和参数
+    depthBuffer = gl.createRenderbuffer();
+    if(!depthBuffer){
+        console.log("无法创建渲染缓冲区对象");
+        return error();
+    }
+
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, offset_width, offset_height);
+
+    //将纹理和渲染缓冲区对象关联到帧缓冲区对象上
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER,depthBuffer);
+
+    //检查帧缓冲区对象是否被正确设置
+    var e = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    if(gl.FRAMEBUFFER_COMPLETE !== e){
+        console.log("渲染缓冲区设置错误"+e.toString());
+        return error();
+    }
+
+    //取消当前的focus对象
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+
+    return framebuffer;
+}
+
 
 function visionToworld(visionRange, view_inverse) {
     const visionMin_world = vec4.create();
@@ -569,9 +631,6 @@ export default async function main() {
     }
     console.log(fbo)
 
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fbo.texture);
-
     function render() {
 
         const d = new Date();
@@ -584,22 +643,28 @@ export default async function main() {
         // shadow content
         
         const shadow_projection = mat4.create()
-        mat4.perspective(shadow_projection, 70, 256/256, 0.1, 100);
-        // mat4.ortho(shadow_projection, -10, 10, -10, 10, 1, 7.5)
+        // mat4.perspective(shadow_projection, 70, 256/256, 0.1, 100);
+        mat4.ortho(shadow_projection, -10, 10, -10, 10, 1, 100)
         const shadow_view = mat4.create()
-        mat4.lookAt(shadow_view, vec3.fromValues(1.0, 1.0, 1.0), vec3.fromValues(-1,-1,-1), vec3.fromValues(0.0, 1.0, 0.0))
+        mat4.lookAt(shadow_view, vec3.fromValues(0.0, 10.0, 0.0), vec3.fromValues(-1,-1,-1), vec3.fromValues(0.0, 1.0, 0.0))
+        
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, fbo.texture); 
         
         shadowShader.use();
         shadowShader.setMat4("projection", shadow_projection)
         shadowShader.setMat4("view", shadow_view)
         
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
         gl.clearColor(0.2, 0.3, 0.3, 1.0);
+        gl.clearDepth(1);
+
         gl.enable(gl.DEPTH_TEST)
         gl.viewport(0.0,0.0,1024,1024);
+        gl.clear(gl.DEPTH_BUFFER_BIT | gl.COLOR_BUFFER_BIT);
         
         
-        gl.clear(gl.DEPTH_BUFFER_BIT);
         aircraftOBJs.forEach((obj, index) => {
             const x = Env.aircraftStatus.x;
             const y = Env.aircraftStatus.y;
@@ -623,7 +688,6 @@ export default async function main() {
             gl.bindVertexArray(obj.VAO);
             gl.drawArrays(gl.TRIANGLES, 0, obj.num);
         })
-
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         // model content
@@ -805,6 +869,7 @@ export default async function main() {
         gl.bindVertexArray(terrainOBJs[0].VAO);
 
         terrainShader.setInt("id",center_id);
+
         gl.drawArrays(gl.TRIANGLES, 0, terrainOBJs[0].num);
 
         mat4.translate(TransedMat, TransedMat, vec3.fromValues

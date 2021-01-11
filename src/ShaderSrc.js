@@ -184,6 +184,7 @@ uniform int id;
 uniform float x_size;
 uniform float z_size;
 
+
 out vec4 v_PositionFromLight;
 void main()
 {
@@ -247,6 +248,7 @@ uniform sampler2D ourTexture;
 uniform vec3 ambient;
 uniform int useSpecular;
 uniform vec3 specular;
+uniform int idf;
 
 uniform sampler2D u_ShadowMap;
 in vec4 v_PositionFromLight;
@@ -294,8 +296,13 @@ void main()
     vec3 ShadowCoord = (v_PositionFromLight.xyz / v_PositionFromLight.w)  * 0.5 + 0.5;
     vec4 rgbaDepth = texture(u_ShadowMap, ShadowCoord.xy);
     float depth = rgbaDepth.a;
-    float vis = (ShadowCoord.z > depth + 0.05) ? 1.0 : 0.6;
-
+    float vis;
+    if (abs(ShadowCoord.x) > 1.0 || abs(ShadowCoord.y) > 1.0) {
+        vis = 1.0;
+    } else {
+        vis = (ShadowCoord.z < depth + 0.05) ? 1.0 : 0.6;
+    }
+    
     vec3 viewDirection = normalize(eyePosition - ourPosition);
     vec3 lightDirection = normalize(lightPosition);
     if (useLightPoint == 1) {
