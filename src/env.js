@@ -27,6 +27,12 @@ export default class Env {
 
     static PI = 3.141592653589793
 
+    static gl;
+
+    static uploadedOBJ = false;
+    static aircraftOBJs;
+    static aircraftOBB;
+
 
     static SCR_WIDTH = 800;
     static SCR_HEIGHT = 600;
@@ -66,6 +72,35 @@ export default class Env {
         bullets : [],
         timestep : 100,
         lastTriger : 0.0
+    }
+
+    static restart = () => {
+
+// camera
+        Env.cameraPos   = vec3.fromValues(0.0, 0.0, -15.0);
+        Env.cameraFront = vec3.fromValues(0.0, 0.0, 1.0);
+        Env.cameraUp    = vec3.fromValues(0.0, 1.0, 0.0);
+
+        Env.firstMouse = true;
+        Env.yaw   = 90.0;
+        Env.pitch =  0.0;
+        Env.lastX =  800.0 / 2.0;
+        Env.lastY =  600.0 / 2.0;
+
+        Env.aircraftStatus = {
+            x: vec3.fromValues(1, 0, 0),
+            y: vec3.fromValues(0, 1, 0),
+            z: vec3.fromValues(0, 0, 1),
+            location: vec3.fromValues(0, 0, 0),
+            P: 0, // ratio of roll
+            Q: 0, // ratio of pitch
+            R: 0, // ratio of yaw
+            U: 0.1, // speed X
+            V: 0, // speed y
+            W: 0,  // speed z
+        }
+
+        Env.isCrash = false;
     }
 
     static updateAircraftStatus = (Fx, Fy, Fz, Mx, My, Mz) => {
@@ -132,7 +167,7 @@ export default class Env {
 
 
     static processInput() {
-        const controlSpeed = 0.000005 * Env.deltaTime;
+        const controlSpeed = 0.000002 * Env.deltaTime;
         let My = -Env.aircraftStatus.Q / Env.deltaTime / 2,
             Mx = -Env.aircraftStatus.P / Env.deltaTime / 2,
             Mz = -Env.aircraftStatus.R / Env.deltaTime / 2, Fx = 0;

@@ -6,6 +6,7 @@ import {parseOBJ} from "./loadOBJ";
 
 import rawOBJ from './AircraftModel/3d-model1.obj'
 import rawMTl from './AircraftModel/3d-model1.mtl'
+import boomImg from './AircraftModel/exploision1.png'
 import rawTerrain from './Terrain/plain.obj'
 import terrainImg from './Terrain/green.png'
 import upURL from './Skybox/up.png'
@@ -15,12 +16,13 @@ import lfURL from './Skybox/lf.png'
 import bkURL from './Skybox/bk.png'
 import ftURL from './Skybox/ft.png'
 
+
 let canvas;
 
-function genOBJBuffer(gl, data, material) {
+export function genOBJBuffer(gl, data, material) {
     const objs = []
-
-    console.log(data);
+    console.log("****");
+    // console.log(data);
 
     let t = -Number.MAX_VALUE;
     for (let i = 0; i < data.geometries.length; ++i) {
@@ -167,8 +169,6 @@ function genTerrainBuffer(gl, data) {
         heights[x][z] = data.geometries[0].data.position[i + 1];
     }
     const getHeight = ([x, y, z]) => {
-        console.log(Math.floor((x) / scaleFactor * t % x_max));
-        console.log(Math.floor((z) / scaleFactor * t % z_max));
         return heights[Math.floor((x) / scaleFactor * t % x_max)][Math.floor((z) / scaleFactor * t % z_max)] / t * scaleFactor - scaleFactor / 20;
     }
 
@@ -303,6 +303,32 @@ function genSkyBoxBuffer(gl) {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(0);
     return [skyVBO, skyVAO];
+
+}
+
+function genBoomBuffer(gl) {
+
+    const BoomVAO = gl.createVertexArray();
+    const BoomVBO = gl.createBuffer();
+
+    gl.bindVertexArray(BoomVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, BoomVBO);
+    const BoomVertexs = new Float32Array([
+        -5.0, 5.0, 0.0, 0.0, 1.0,
+        -5.0, -5.0, 0.0, 0.0, 0.0,
+        5.0, 5.0, 0.0, 1.0, 1.0,
+        5.0, -5.0, 0.0, 1.0, 0.0
+    ]);
+    gl.bufferData(gl.ARRAY_BUFFER, BoomVertexs, gl.STATIC_DRAW);
+    // position attribute
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 5 * 4, 0);
+    gl.enableVertexAttribArray(0);
+
+    // normal attribute
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 5 * 4, (3 * 4));
+    gl.enableVertexAttribArray(1);
+
+    return [BoomVBO, BoomVAO];
 
 }
 
@@ -538,6 +564,7 @@ export default async function main() {
     Env.SCR_WIDTH = canvas.width;
     Env.SCR_HEIGHT = canvas.height;
     const gl = canvas.getContext('webgl2');
+    Env.gl = gl;
     gl.enable(gl.DEPTH_TEST)
 
     if (!gl) {
@@ -549,10 +576,7 @@ export default async function main() {
     const skyShader = new Shader(gl, "skyVsShader", 'skyFsShader');
     const terrainShader = new Shader(gl, "terrainVsShader", 'terrainFsShader');
     const shadowShader = new Shader(gl, "shadowVS", "shadowFS");
-
-    if(gl.getError() != gl.NO_ERROR) {
-        alert("Something went wrong")
-    }
+    const boomShader = new Shader(gl,"boomVsShader","boomFsShader");
 
     const objHref = rawOBJ;
     const [aircraftOBJ, materials] = await getOBJFromPath(objHref);
@@ -626,8 +650,6 @@ export default async function main() {
     });
     gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    skyShader.setInt("skybox", 0);
-
     //SkyBox Part Ends
 
     const fbo = initFramebufferObject(gl)
@@ -635,6 +657,11 @@ export default async function main() {
         alert("creating framebuffer failed")
     }
     console.log(fbo)
+    //Boom Parts Begins
+    const[BoomVBO,BoomVAO]=genBoomBuffer(gl);
+    const BoomTexture = createTexture(gl,boomImg);
+    //Boom Parts Ends
+
 
     function render() {
 
@@ -708,7 +735,7 @@ export default async function main() {
         const projection = mat4.create();
         const fov = glMatrix.toRadian(Env.fov);
         const near = 0.1;
-        const far = 1000;
+        const far = 5000;
         const aspect = Env.SCR_WIDTH / Env.SCR_HEIGHT;
         mat4.perspective(projection, fov, aspect, near, far);
         const view = mat4.create();
@@ -717,7 +744,7 @@ export default async function main() {
         mat4.lookAt(view, Env.cameraPos, t, Env.cameraUp);
         //Calculate Vision range
         //这个是相机坐标系
-        const visionRange = getVisionRange(near, far, fov, aspect)
+        // const visionRange = getVisionRange(near, far, fov, aspect)
         //Draw Skybox
         skyShader.use();
 
@@ -741,6 +768,7 @@ export default async function main() {
         gl.bindVertexArray(skyVAO);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         //Skybox ends
+
         ourShader.use();
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
@@ -750,6 +778,7 @@ export default async function main() {
         ourShader.setFloat("fresnel", 5);
         ourShader.setInt("useLightPoint", 1);
         ourShader.setInt("useSpecular", 0);
+        ourShader.setInt("isCrash", 0);
 
         const modelOBJ = mat4.create();
         mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0));
@@ -762,49 +791,58 @@ export default async function main() {
             z[0], z[1], z[2], 0,
             0, 0, 0, 1);
         mat4.multiply(modelOBJ, modelRotation, modelOBJ);
-        const aircraftOBBRotated = aircraftOBB.map((v) => {
+        const aircraftOBBRotated = Env.uploadedOBJ ? Env.aircraftOBB.map((v) => {
+            const res = vec4.create();
+            vec4.transformMat4(res, vec4.fromValues(v[0], v[1], v[2], 1), modelOBJ);
+            return vec3.fromValues(res[0], res[1], res[2]);
+        }) : aircraftOBB.map((v) => {
             const res = vec4.create();
             vec4.transformMat4(res, vec4.fromValues(v[0], v[1], v[2], 1), modelOBJ);
             return vec3.fromValues(res[0], res[1], res[2]);
         })
 
-        for (let i = 0; i < aircraftOBBRotated.length; ++i) {
-            let point = aircraftOBBRotated[i];
-            console.log(point, Env.aircraftStatus.location);
-            const height = terrainGetHeight([Math.abs(point[0] + Env.aircraftStatus.location[0] - Math.floor((Env.aircraftStatus.location[0])/terrainOBJs[1].size_x) * terrainOBJs[1].size_x),
-                Math.abs(point[1] + Env.aircraftStatus.location[1]),
-                Math.abs(point[2] + Env.aircraftStatus.location[2] - Math.floor(Env.aircraftStatus.location[2]/terrainOBJs[1].size_z) * terrainOBJs[1].size_z)]);
-            if (height > point[1]) {
-                Env.isCrash = true;
-            }
-        }
 
-        if (!Env.isCrash) {
+        if (Env.isCrash) {
+            ourShader.setInt("isCrash", 1);
             console.log("Crashed!!!");
         }
-        aircraftOBJs.forEach((obj, index) => {
-            ourShader.setVec3("lightPosition", vec3.fromValues(1, 1, 1));
-            ourShader.setInt("useLightPoint", 0);
-            ourShader.setInt("useTexture", 0);
-            ourShader.setVec3("ambient", vec3.fromValues(obj.ambient[0], obj.ambient[1], obj.ambient[2]));
-            ourShader.setInt("useSpecular", 1);
-            ourShader.setVec3("specular", vec3.fromValues(obj.specular[0], obj.specular[1], obj.specular[2]));
+        if (!Env.uploadedOBJ) {
+            aircraftOBJs.forEach((obj, index) => {
+                ourShader.setVec3("lightPosition", vec3.fromValues(1, 1, 1));
+                ourShader.setInt("useLightPoint", 0);
+                ourShader.setInt("useTexture", 0);
+                ourShader.setVec3("ambient", vec3.fromValues(obj.ambient[0], obj.ambient[1], obj.ambient[2]));
+                ourShader.setInt("useSpecular", 1);
+                ourShader.setVec3("specular", vec3.fromValues(obj.specular[0], obj.specular[1], obj.specular[2]));
 
-            if (index == 7) {
-                let fanCenter = vec3.fromValues(0, 0, 1)
-                const modelOBJTmp = mat4.create();
-                mat4.translate(modelOBJTmp, modelOBJ, vec3.fromValues(0, 1, 0))
-                mat4.rotateZ(modelOBJTmp, modelOBJTmp, Math.cos(currentFrame * 0.1))
-                mat4.translate(modelOBJTmp, modelOBJTmp, vec3.fromValues(0, -1, 0))
-                ourShader.setMat4("model", modelOBJTmp);
-                gl.bindVertexArray(obj.VAO);
-                gl.drawArrays(gl.TRIANGLES, 0, obj.num);
-            } else {
+                if (index === 7 && Env.isCrash === false) {
+                    const modelOBJTmp = mat4.create();
+                    mat4.translate(modelOBJTmp, modelOBJ, vec3.fromValues(0, 1, 0))
+                    mat4.rotateZ(modelOBJTmp, modelOBJTmp, Math.cos(currentFrame * 0.1))
+                    mat4.translate(modelOBJTmp, modelOBJTmp, vec3.fromValues(0, -1, 0))
+                    ourShader.setMat4("model", modelOBJTmp);
+                    gl.bindVertexArray(obj.VAO);
+                    gl.drawArrays(gl.TRIANGLES, 0, obj.num);
+                } else {
+                    ourShader.setMat4("model", modelOBJ);
+                    gl.bindVertexArray(obj.VAO);
+                    gl.drawArrays(gl.TRIANGLES, 0, obj.num);
+                }
+            })
+        } else {
+            Env.aircraftOBJs.forEach((obj, index) => {
+                ourShader.setVec3("lightPosition", vec3.fromValues(1, 1, 1));
+                ourShader.setInt("useLightPoint", 0);
+                ourShader.setInt("useTexture", 0);
+                ourShader.setVec3("ambient", vec3.fromValues(obj.ambient[0], obj.ambient[1], obj.ambient[2]));
+                ourShader.setInt("useSpecular", 1);
+                ourShader.setVec3("specular", vec3.fromValues(obj.specular[0], obj.specular[1], obj.specular[2]));
+
                 ourShader.setMat4("model", modelOBJ);
                 gl.bindVertexArray(obj.VAO);
                 gl.drawArrays(gl.TRIANGLES, 0, obj.num);
-            }
-        })
+            })
+        }
 
         Env.Bullets.bullets.forEach((bullet, index) => {
             let obj = aircraftOBJs[index % aircraftOBJs.length];
@@ -825,8 +863,7 @@ export default async function main() {
             gl.bindVertexArray(obj.VAO);
             gl.drawArrays(gl.TRIANGLES, 0, obj.num);
         })
-        
-
+            
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, terrainTexture);
         gl.activeTexture(gl.TEXTURE1)
@@ -849,7 +886,8 @@ export default async function main() {
         const borders = terrainOBJs[1];
         const TransedMat = mat4.create();
         const x_block_offset = Math.floor(Env.aircraftStatus.location[0]/borders.size_x);
-        const tmpMat = mat4.create();	        const z_block_offset = Math.floor(Env.aircraftStatus.location[2]/borders.size_z);
+        const tmpMat = mat4.create();
+        const z_block_offset = Math.floor(Env.aircraftStatus.location[2]/borders.size_z);
         const x_flag = (2 + x_block_offset)%2;
         const z_flag = (2 + z_block_offset)%2;
         const lr_map=[1,0,3,2];
@@ -859,6 +897,19 @@ export default async function main() {
         const lr_id = lr_map[center_id];
         const fb_id = fb_map[center_id];
         const cross_id = cross_map[center_id];
+
+
+        for (let i = 0; i < aircraftOBBRotated.length; ++i) {
+            let point = aircraftOBBRotated[i];
+            const xt = Math.abs(point[0] + Env.aircraftStatus.location[0] - x_block_offset * terrainOBJs[1].size_x);
+            const zt = Math.abs(point[2] + Env.aircraftStatus.location[2] - z_block_offset * terrainOBJs[1].size_z);
+            const height = terrainGetHeight([x_flag ? Math.abs(terrainOBJs[1].size_x - xt) : xt,
+                Math.abs(point[1] + Env.aircraftStatus.location[1]),
+                z_flag ? Math.abs(terrainOBJs[1].size_z - zt) : zt]);
+            if (height > point[1] + Env.aircraftStatus.location[1]) {
+                Env.isCrash = true;
+            }
+        }
 
         terrainShader.setFloat("x_size",borders.size_x);
         terrainShader.setFloat("z_size",borders.size_z);
@@ -932,6 +983,39 @@ export default async function main() {
         terrainShader.setMat4("model", TransedMat);
         terrainShader.setInt("id",cross_id);
         gl.drawArrays(gl.TRIANGLES, 0, terrainOBJs[0].num);
+
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, BoomTexture)
+        if (Env.isCrash) {
+            //Draw Boom
+            mat4.copy(view_tmp, view);
+            view_tmp[0] = 1.0;
+            view_tmp[1] = 0.0;
+            view_tmp[2] = 0.0;
+            view_tmp[4] = 0.0;
+            view_tmp[5] = 1.0;
+            view_tmp[6] = 0.0;
+            view_tmp[7] = 0.0;
+            view_tmp[8] = 0.0;
+            view_tmp[9] = 1.0;
+            boomShader.use();
+            boomShader.setInt('u_boom', 0);
+            boomShader.setMat4('view', view_tmp);
+            boomShader.setMat4('projection', projection);
+            //gl.enable(gl.BLEND);
+            gl.disable(gl.DEPTH_TEST);
+            gl.bindVertexArray(BoomVAO);
+            gl.bindTexture(gl.TEXTURE_2D, BoomTexture);
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl.disable(gl.BLEND);
+            gl.enable(gl.DEPTH_TEST);
+            //Boom ends
+        }
+
+
+
         requestAnimationFrame(render);
     }
     requestAnimationFrame(render);

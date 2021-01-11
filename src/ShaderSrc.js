@@ -360,5 +360,37 @@ out vec4 FragColor;
 void main()
 {
     FragColor = vec4( gl_FragCoord.z, gl_FragCoord.z, gl_FragCoord.z, gl_FragCoord.z);\n
-}`
+}`,
+boomVsShader:`#version 300 es
+precision mediump float;
+
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexcoord;
+
+out vec2 Texcoord;
+
+uniform mat4 view;
+uniform mat4 projection;
+
+void main()
+{
+    vec4 position = projection * view * vec4(aPos, 1.0f);
+    gl_Position = position / position.w; 
+    Texcoord = aTexcoord;
+}
+`,
+boomFsShader:`#version 300 es
+precision mediump float;
+ 
+out vec4 FragColor;
+
+in vec2 Texcoord;
+
+uniform sampler2D u_boom;
+
+void main()
+{
+    FragColor = texture(u_boom, Texcoord);
+}
+`
 }
