@@ -696,30 +696,55 @@ export default async function main() {
         gl.viewport(0.0,0.0,1024,1024);
         gl.clear(gl.DEPTH_BUFFER_BIT | gl.COLOR_BUFFER_BIT);
         
-        
-        aircraftOBJs.forEach((obj, index) => {
-            const x = Env.aircraftStatus.x;
-            const y = Env.aircraftStatus.y;
-            const z = Env.aircraftStatus.z;
+        if (!Env.uploadedOBJ) {
+            aircraftOBJs.forEach((obj, index) => {
+                const x = Env.aircraftStatus.x;
+                const y = Env.aircraftStatus.y;
+                const z = Env.aircraftStatus.z;
 
-            const modelOBJ = mat4.create();
-            mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0));
+                const modelOBJ = mat4.create();
+                mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0));
 
-            if (index == 7) {
-                let fanCenter = vec3.fromValues(0, 0, 1)
-                mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, 1, 0))
-                mat4.rotateZ(modelOBJ, modelOBJ, Math.cos(currentFrame * 0.1))
-                mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0))
-            }
-            const modelRotation = mat4.fromValues(x[0], x[1], x[2], 0,
-                y[0], y[1], y[2], 0,
-                z[0], z[1], z[2], 0,
-                0, 0, 0, 1);
-            mat4.multiply(modelOBJ, modelRotation, modelOBJ);
-            shadowShader.setMat4("model", modelOBJ);
-            gl.bindVertexArray(obj.VAO);
-            gl.drawArrays(gl.TRIANGLES, 0, obj.num);
-        })
+                if (index == 7) {
+                    let fanCenter = vec3.fromValues(0, 0, 1)
+                    mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, 1, 0))
+                    mat4.rotateZ(modelOBJ, modelOBJ, Math.cos(currentFrame * 0.1))
+                    mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0))
+                }
+                const modelRotation = mat4.fromValues(x[0], x[1], x[2], 0,
+                    y[0], y[1], y[2], 0,
+                    z[0], z[1], z[2], 0,
+                    0, 0, 0, 1);
+                mat4.multiply(modelOBJ, modelRotation, modelOBJ);
+                shadowShader.setMat4("model", modelOBJ);
+                gl.bindVertexArray(obj.VAO);
+                gl.drawArrays(gl.TRIANGLES, 0, obj.num);
+            })
+        } else {
+            Env.aircraftOBJs.forEach((obj, index) => {
+                const x = Env.aircraftStatus.x;
+                const y = Env.aircraftStatus.y;
+                const z = Env.aircraftStatus.z;
+
+                const modelOBJ = mat4.create();
+                mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0));
+
+                if (index == 7) {
+                    let fanCenter = vec3.fromValues(0, 0, 1)
+                    mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, 1, 0))
+                    mat4.rotateZ(modelOBJ, modelOBJ, Math.cos(currentFrame * 0.1))
+                    mat4.translate(modelOBJ, modelOBJ, vec3.fromValues(0, -1, 0))
+                }
+                const modelRotation = mat4.fromValues(x[0], x[1], x[2], 0,
+                    y[0], y[1], y[2], 0,
+                    z[0], z[1], z[2], 0,
+                    0, 0, 0, 1);
+                mat4.multiply(modelOBJ, modelRotation, modelOBJ);
+                shadowShader.setMat4("model", modelOBJ);
+                gl.bindVertexArray(obj.VAO);
+                gl.drawArrays(gl.TRIANGLES, 0, obj.num);
+            })
+        }
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         // model content
